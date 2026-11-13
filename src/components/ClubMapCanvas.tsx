@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { NPC, PlayerPosition } from '../types/game';
 import { NPCS } from '../data/goodSportsQuestions';
 import { sounds } from '../utils/audio';
+import { drawClubMap } from './clubhouse-pixel-art';
 import { MessageSquare, Compass, Volume2, VolumeX, HelpCircle, Award } from 'lucide-react';
 
 interface ClubMapCanvasProps {
@@ -285,308 +286,19 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
   // Rendering Game Loop
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
 
     let time = 0;
-
     const render = () => {
       time += 0.05;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // 1. Draw Ground Background
-      // Grass field for outdoor
-      ctx.fillStyle = '#22543d'; // Rich sports turf green
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Subtle grass stripe patterns on pitch
-      ctx.fillStyle = '#276749';
-      for (let r = 2; r < 15; r += 2) {
-        ctx.fillRect(20 * TILE_SIZE, r * TILE_SIZE, 11 * TILE_SIZE, TILE_SIZE);
-      }
-      for (let r = 16; r < 23; r += 2) {
-        ctx.fillRect(1 * TILE_SIZE, r * TILE_SIZE, 9 * TILE_SIZE, TILE_SIZE);
-      }
-
-      // 2. Outdoor Paths & Sidewalks (Sand/Pebble tone)
-      ctx.fillStyle = '#b7791f';
-      // Pathway between clubhouse entrance and sports grounds
-      ctx.fillRect(9 * TILE_SIZE, 15 * TILE_SIZE, 4 * TILE_SIZE, 2 * TILE_SIZE);
-      ctx.fillRect(13 * TILE_SIZE, 15 * TILE_SIZE, 7 * TILE_SIZE, 2 * TILE_SIZE);
-      // Path to wellbeing
-      ctx.fillRect(19 * TILE_SIZE, 14 * TILE_SIZE, 2 * TILE_SIZE, 8 * TILE_SIZE);
-      ctx.fillRect(20 * TILE_SIZE, 18 * TILE_SIZE, 5 * TILE_SIZE, 2 * TILE_SIZE);
-
-      // 3. Clubhouse Interior Building Flooring
-      // Main clubhouse timber/linoleum
-      ctx.fillStyle = '#78350f'; // Timber sub-base
-      ctx.fillRect(1 * TILE_SIZE, 1 * TILE_SIZE, 18 * TILE_SIZE, 14 * TILE_SIZE);
-      ctx.fillStyle = '#92400e'; // Warm parquet planking
-      for (let r = 1; r <= 14; r++) {
-        for (let c = 1; c <= 18; c++) {
-          if ((r + c) % 2 === 0) {
-            ctx.fillStyle = '#854d0e';
-            ctx.fillRect(c * TILE_SIZE + 1, r * TILE_SIZE + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-          }
-        }
-      }
-
-      // Boardroom tile floor (carpeted navy feel)
-      ctx.fillStyle = '#1e3a8a';
-      ctx.fillRect(1 * TILE_SIZE, 1 * TILE_SIZE, 10 * TILE_SIZE, 5 * TILE_SIZE);
-
-      // Clubhouse walls
-      ctx.strokeStyle = '#374151';
-      ctx.lineWidth = 4;
-      ctx.fillStyle = '#1f2937';
-
-      // Top wall
-      ctx.fillRect(1 * TILE_SIZE, 1 * TILE_SIZE, 18 * TILE_SIZE, 8);
-      // Left wall
-      ctx.fillRect(1 * TILE_SIZE, 1 * TILE_SIZE, 8, 14 * TILE_SIZE);
-      // Right wall with patio exit
-      ctx.fillRect(19 * TILE_SIZE - 8, 1 * TILE_SIZE, 8, 10 * TILE_SIZE);
-      ctx.fillRect(19 * TILE_SIZE - 8, 13 * TILE_SIZE, 8, 2 * TILE_SIZE);
-      // Bottom wall with entrance opening
-      ctx.fillRect(1 * TILE_SIZE, 15 * TILE_SIZE - 8, 8 * TILE_SIZE, 8);
-      ctx.fillRect(13 * TILE_SIZE, 15 * TILE_SIZE - 8, 6 * TILE_SIZE, 8);
-
-      // Boardroom divider
-      ctx.fillRect(11 * TILE_SIZE - 4, 1 * TILE_SIZE, 8, 4 * TILE_SIZE);
-      ctx.fillRect(11 * TILE_SIZE - 4, 5 * TILE_SIZE + 16, 8, 1 * TILE_SIZE);
-
-      // Boardroom conference table & chairs
-      ctx.fillStyle = '#451a03';
-      ctx.fillRect(4 * TILE_SIZE, 3 * TILE_SIZE, 5 * TILE_SIZE, 1 * TILE_SIZE);
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = '10px sans-serif';
-      ctx.fillText('🏆 Good Sports Committee Desk', 4 * TILE_SIZE + 6, 3 * TILE_SIZE + 22);
-
-      // Bar Counter (L-shape counter)
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(7 * TILE_SIZE, 7 * TILE_SIZE, 10 * TILE_SIZE, TILE_SIZE);
-      ctx.fillRect(7 * TILE_SIZE, 8 * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      // Bar taps & water font
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillRect(8 * TILE_SIZE + 6, 7 * TILE_SIZE + 8, 12, 18);
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillRect(12 * TILE_SIZE + 4, 7 * TILE_SIZE + 6, 8, 22); // Tap
-      ctx.fillRect(14 * TILE_SIZE + 4, 7 * TILE_SIZE + 6, 8, 22); // Tap
-      // Free water dispenser station icon
-      ctx.fillStyle = '#0284c7';
-      ctx.beginPath();
-      ctx.arc(13 * TILE_SIZE + 18, 7 * TILE_SIZE + 16, 7, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Bar sign
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText('CLUB BAR & RSA DESK', 8 * TILE_SIZE + 20, 6 * TILE_SIZE + 24);
-
-      // Foyer Welcome Rug
-      ctx.fillStyle = '#065f46';
-      ctx.fillRect(9 * TILE_SIZE + 4, 13 * TILE_SIZE + 4, 4 * TILE_SIZE - 8, 2 * TILE_SIZE - 8);
-      ctx.fillStyle = '#34d399';
-      ctx.font = '10px "Press Start 2P", monospace';
-      ctx.fillText('GOOD SPORTS', 9 * TILE_SIZE + 14, 14 * TILE_SIZE + 12);
-
-      // 4. Change Rooms Building
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(11 * TILE_SIZE, 17 * TILE_SIZE, 5 * TILE_SIZE, 4 * TILE_SIZE);
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(11 * TILE_SIZE + 4, 17 * TILE_SIZE + 4, 5 * TILE_SIZE - 8, 4 * TILE_SIZE - 8);
-      // Locker doors
-      ctx.fillStyle = '#64748b';
-      ctx.fillRect(12 * TILE_SIZE, 18 * TILE_SIZE, 14, 24);
-      ctx.fillRect(14 * TILE_SIZE, 18 * TILE_SIZE, 14, 24);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '9px sans-serif';
-      ctx.fillText('CHANGE ROOMS', 11 * TILE_SIZE + 8, 17 * TILE_SIZE - 6);
-      ctx.fillStyle = '#ef4444';
-      ctx.fillText('🚫 ALCOHOL FREE (U18)', 11 * TILE_SIZE + 2, 21 * TILE_SIZE + 28);
-
-      // 5. Playing Field Markings
-      // Senior Field Center Circle & Goal Lines
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(26 * TILE_SIZE, 8 * TILE_SIZE, 2.5 * TILE_SIZE, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeRect(21 * TILE_SIZE, 3 * TILE_SIZE, 9 * TILE_SIZE, 10 * TILE_SIZE);
-
-      // Senior Goal Posts
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(30 * TILE_SIZE + 14, 6 * TILE_SIZE, 4, 4 * TILE_SIZE);
-      ctx.fillRect(30 * TILE_SIZE + 14, 7 * TILE_SIZE, 4, 2 * TILE_SIZE);
-
-      // Junior Mini Pitch Markings
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.strokeRect(2 * TILE_SIZE, 18 * TILE_SIZE, 8 * TILE_SIZE, 4 * TILE_SIZE);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '10px sans-serif';
-      ctx.fillText('JUNIOR FIELDS (100% ALCOHOL-FREE)', 2 * TILE_SIZE + 4, 17 * TILE_SIZE + 26);
-
-      // Grandstand Spectator Area
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(23 * TILE_SIZE, 4 * TILE_SIZE, 6 * TILE_SIZE, 2 * TILE_SIZE);
-      ctx.fillStyle = '#10b981';
-      ctx.font = '10px sans-serif';
-      ctx.fillText('🚭 SMOKE & VAPE FREE SPECTATORS', 23 * TILE_SIZE, 3 * TILE_SIZE + 24);
-
-      // Wellbeing First Aid Pavilion
-      ctx.fillStyle = '#0891b2';
-      ctx.fillRect(25 * TILE_SIZE, 16 * TILE_SIZE, 4 * TILE_SIZE, 2 * TILE_SIZE);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.fillText('❤️ WELLBEING NOOK', 25 * TILE_SIZE + 4, 16 * TILE_SIZE - 4);
-
-      // 6. Draw NPCs
-      NPCS.forEach((npc) => {
-        const nx = npc.x * TILE_SIZE + TILE_SIZE / 2;
-        const ny = npc.y * TILE_SIZE + TILE_SIZE / 2;
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        ctx.beginPath();
-        ctx.ellipse(nx, ny + 12, 10, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // NPC Body
-        ctx.fillStyle = npc.spriteColor;
-        ctx.beginPath();
-        ctx.arc(nx, ny + 2, 9, 0, Math.PI * 2);
-        ctx.fill();
-
-        // NPC Head
-        ctx.fillStyle = '#fde047'; // Skin tone
-        ctx.beginPath();
-        ctx.arc(nx, ny - 8, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Hair/cap
-        ctx.fillStyle = npc.spriteColor;
-        ctx.beginPath();
-        ctx.arc(nx, ny - 11, 7, Math.PI, Math.PI * 2);
-        ctx.fill();
-
-        // Eyes
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(nx - 3, ny - 9, 2, 2);
-        ctx.fillRect(nx + 1, ny - 9, 2, 2);
-
-        // Completion status badge over head
-        const completion = npcCompletionMap[npc.id] || { total: 0, completed: 0 };
-        const isDone = completion.total > 0 && completion.completed >= completion.total;
-
-        // Bobbing animation
-        const bob = Math.sin(time * 2 + npc.x) * 2;
-
-        if (isDone) {
-          // Completed checkmark
-          ctx.fillStyle = '#10b981';
-          ctx.beginPath();
-          ctx.arc(nx, ny - 24 + bob, 7, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#ffffff';
-          ctx.font = 'bold 9px sans-serif';
-          ctx.fillText('✓', nx - 3, ny - 21 + bob);
-        } else {
-          // Quest / Question marker
-          ctx.fillStyle = '#f59e0b';
-          ctx.beginPath();
-          ctx.arc(nx, ny - 24 + bob, 7, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#0f172a';
-          ctx.font = 'bold 9px "Press Start 2P", monospace';
-          ctx.fillText('?', nx - 3, ny - 19 + bob);
-        }
-
-        // Small name badge below
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        ctx.fillRect(nx - 24, ny + 16, 48, 12);
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = '8px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(npc.name, nx, ny + 25);
-        ctx.textAlign = 'start';
-      });
-
-      // 7. Draw Player Character
-      const px = player.x * TILE_SIZE + TILE_SIZE / 2;
-      const py = player.y * TILE_SIZE + TILE_SIZE / 2;
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(px, py + 12, 11, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Player Body / Club Jersey (Gold & Emerald Rovers Jersey)
-      ctx.fillStyle = '#047857'; // Emerald body
-      ctx.beginPath();
-      ctx.arc(px, py + 2, 10, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Jersey Sash (Gold Rovers Stripe)
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(px - 6, py - 4);
-      ctx.lineTo(px + 6, py + 8);
-      ctx.stroke();
-
-      // Head
-      ctx.fillStyle = '#fed7aa';
-      ctx.beginPath();
-      ctx.arc(px, py - 8, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Red Cap (Classic Pokémon Trainer red cap)
-      ctx.fillStyle = '#dc2626';
-      ctx.beginPath();
-      ctx.arc(px, py - 11, 8, Math.PI, Math.PI * 2);
-      ctx.fill();
-      // Cap visor pointing in direction
-      if (player.dir === 'left') {
-        ctx.fillRect(px - 12, py - 11, 6, 3);
-      } else if (player.dir === 'right') {
-        ctx.fillRect(px + 6, py - 11, 6, 3);
-      } else if (player.dir === 'down') {
-        ctx.fillRect(px - 5, py - 9, 10, 3);
-      }
-
-      // Eyes
-      ctx.fillStyle = '#0f172a';
-      if (player.dir === 'down') {
-        ctx.fillRect(px - 4, py - 8, 2, 3);
-        ctx.fillRect(px + 2, py - 8, 2, 3);
-      } else if (player.dir === 'left') {
-        ctx.fillRect(px - 6, py - 8, 2, 3);
-      } else if (player.dir === 'right') {
-        ctx.fillRect(px + 4, py - 8, 2, 3);
-      }
-
-      // Proximity exclamation prompt if near NPC
-      if (nearbyNPC) {
-        const bob = Math.sin(time * 3) * 3;
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(px - 4, py - 32 + bob, 8, 12);
-        ctx.beginPath();
-        ctx.arc(px, py - 16 + bob, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
+      drawClubMap(ctx, player, nearbyNPC, npcCompletionMap, time);
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
     render();
-
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
   }, [player, nearbyNPC, npcCompletionMap]);
 
@@ -675,8 +387,8 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
         <div className="hidden md:flex absolute top-3 right-3 flex-col gap-1.5 bg-slate-900/85 backdrop-blur-md border border-slate-700/80 rounded-lg p-2.5 text-[11px] text-slate-300 pointer-events-none">
           <div className="font-semibold text-slate-200 border-b border-slate-700 pb-1">Club Map Guide</div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
-            <span>Yellow ?: Questions Pending</span>
+            <span className="inline-flex w-3 h-3 items-center justify-center border border-slate-900 bg-amber-50 text-[8px] font-bold text-rose-600">…</span>
+            <span>Speech bubble: Talk · !: Nearby</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
