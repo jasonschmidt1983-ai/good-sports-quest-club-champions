@@ -27,7 +27,7 @@ Redesign the existing Good Sports Quest map as an original 16-bit-era, 2.5D top-
 7. Use the existing audio toggle to start/stop both music and effects, respecting saved mute preference and browser autoplay restrictions.
 8. Set Vite's production base to `/good-sports-quest-club-champions/` in GitHub Actions and use `import.meta.env.BASE_URL` for public audio assets so both app bundles and music load beneath the project Pages URL.
 9. Add a GitHub Actions workflow that installs from the frozen Bun lockfile, runs lint and build, then uploads `dist` and deploys it to Pages on pushes to `main` and manual dispatch.
-10. Keep the GitHub repository private as approved; publish the Pages site at `https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/`, which is publicly accessible.
+10. Make the GitHub repository public as authorized so it matches the existing Pages setup; publish the site at `https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/`.
 
 ## Project structure
 - `src/components/ClubMapCanvas.tsx`: map interactions, player position, map view and controls.

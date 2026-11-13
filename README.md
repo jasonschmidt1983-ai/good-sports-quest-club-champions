@@ -1,20 +1,36 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Good Sports Quest: Club Champions
 
-# Run and deploy your AI Studio app
+**[Play the live game](https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/)**
 
-This contains everything you need to run your app locally.
+Good Sports Quest is an interactive browser adventure for community sports clubs. Explore the grounds in a top-down pixel-art RPG, talk with club teammates and officials, and work through the Good Sports questionnaire, action plan, and training activities.
 
-View your app in AI Studio: https://ai.studio/apps/479c0fd9-57ad-4ded-8a4c-a44dea05dc0e
+## Run locally
 
-## Run Locally
+**Prerequisite:** Bun 1.3.8 or a current Node.js and npm installation.
 
-**Prerequisites:**  Node.js
+With Bun:
 
+```sh
+bun install --frozen-lockfile
+bun run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Or with npm:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite (by default, `http://localhost:3000`).
+
+## Checks
+
+```sh
+bun run lint
+bun run build
+```
+
+## Deployment
+
+GitHub Actions deploys the production build to GitHub Pages whenever `main` is updated. The workflow is also available for manual dispatch under the repository’s Actions tab.
