@@ -1,0 +1,6 @@
+{
+  "name": "Good Sports Quest: Club Champions",
+  "description": "A Pokémon-style 2D RPG where clubs explore the sports clubhouse, interact with teammates and officials, complete the Good Sports questionnaire, unlock training modules, and achieve Silver and Gold accreditation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
