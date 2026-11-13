@@ -26,3 +26,7 @@
 - Add audio sound effects and 16-bit retro background music to match the Pokémon aesthetic.
 - Play a short footstep sound on successful tile movement and a distinct collision blip on a blocked tile.
 - Start the music after the first permitted user gesture, loop it continuously, and make the existing audio toggle control both music and sound effects.
+
+## 6. GitHub Pages browser preview — in progress
+- Set up GitHub Pages to deploy a live browser preview of the game.
+- Keep the source repository private; publish the Pages site publicly at `https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/` as approved.

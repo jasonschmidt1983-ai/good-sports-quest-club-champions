@@ -25,12 +25,16 @@ Redesign the existing Good Sports Quest map as an original 16-bit-era, 2.5D top-
 5. Verify changes with TypeScript and production build commands, resolving any verified dependency issue if needed before the final build is declared complete.
 6. Keep synthesized one-shot sound effects in the existing Web Audio manager, adding tile footsteps and collision bumps; play one generated original 16-bit-style instrumental loop at a restrained volume after the first user gesture.
 7. Use the existing audio toggle to start/stop both music and effects, respecting saved mute preference and browser autoplay restrictions.
+8. Set Vite's production base to `/good-sports-quest-club-champions/` in GitHub Actions and use `import.meta.env.BASE_URL` for public audio assets so both app bundles and music load beneath the project Pages URL.
+9. Add a GitHub Actions workflow that installs from the frozen Bun lockfile, runs lint and build, then uploads `dist` and deploys it to Pages on pushes to `main` and manual dispatch.
+10. Keep the GitHub repository private as approved; publish the Pages site at `https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/`, which is publicly accessible.
 
 ## Project structure
 - `src/components/ClubMapCanvas.tsx`: map interactions, player position, map view and controls.
 - `src/components/clubhouse-pixel-art.ts`: pure canvas drawing helpers for terrain, architecture, props, pixel sprites and status bubbles.
 - `src/utils/audio.ts`: synthesized gameplay/UI effects plus looped background music and shared mute behavior.
 - `public/audio/club-grounds-loop.mp3`: original instrumental background loop.
+- `.github/workflows/deploy.yml`: frozen-lockfile build and GitHub Pages deployment workflow.
 - `src/data/goodSportsQuestions.ts`: existing NPC and question definitions, unchanged by this visual pass.
 - `src/types/game.ts`: existing game types, unchanged unless the renderer reveals a necessary type gap.
 - `src/App.tsx`: existing application state and quest UI, unchanged.

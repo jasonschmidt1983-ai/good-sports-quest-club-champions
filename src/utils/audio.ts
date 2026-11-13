@@ -31,7 +31,7 @@ class SoundManager {
   private startBackgroundMusic() {
     if (this.isMuted || typeof window === 'undefined') return;
     if (!this.backgroundMusic) {
-      this.backgroundMusic = new Audio('/audio/club-grounds-loop.mp3');
+      this.backgroundMusic = new Audio(`${import.meta.env.BASE_URL}audio/club-grounds-loop.mp3`);
       this.backgroundMusic.loop = true;
       this.backgroundMusic.preload = 'auto';
       this.backgroundMusic.volume = 0.22;
