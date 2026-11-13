@@ -1,9 +1,26 @@
 import { NPC, PlayerPosition } from '../types/game';
 import { NPCS } from '../data/goodSportsQuestions';
+import {
+  BUSH_PLACEMENTS,
+  DIRT_PATHS,
+  isOnDirtPath,
+  GRANDSTAND,
+  JUNIOR_FENCE,
+  JUNIOR_PITCH,
+  JUNIOR_TURF,
+  MAP_HEIGHT,
+  MAP_WIDTH,
+  SENIOR_FENCE,
+  SENIOR_PITCH,
+  SENIOR_TURF,
+  TILE_SIZE,
+  TREE_PLACEMENTS,
+} from './club-map-geometry';
 
-const TILE = 36;
-const W = 32 * TILE;
-const H = 24 * TILE;
+const TILE = TILE_SIZE;
+const W = MAP_WIDTH;
+const H = MAP_HEIGHT;
+const SHADOW_COLOR = 'rgba(15, 23, 42, 0.28)';
 
 type CompletionMap = Record<string, { total: number; completed: number }>;
 
@@ -26,12 +43,45 @@ const C = {
   wallDark: '#9f7954',
   emerald: '#176847',
   gold: '#f4c45c',
+  stone: '#727c7c',
+  stoneLight: '#a5aaa0',
+  stoneDark: '#465257',
 };
 
 const rect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) => {
   ctx.fillStyle = color;
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 };
+
+function tileHash(col: number, row: number, salt = 0): number {
+  let value = Math.imul(col + 0x9e3779b9, 0x85ebca6b) ^ Math.imul(row + 0x7f4a7c15, 0xc2b2ae35) ^ salt;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return (value ^ (value >>> 16)) >>> 0;
+}
+
+function drawDropShadow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, blur = 7) {
+  ctx.save();
+  ctx.shadowColor = SHADOW_COLOR;
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 4;
+  ctx.shadowOffsetY = 5;
+  rect(ctx, x, y, w, h, SHADOW_COLOR);
+  ctx.restore();
+}
+
+function drawFootShadow(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number) {
+  ctx.save();
+  ctx.shadowColor = SHADOW_COLOR;
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = SHADOW_COLOR;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 const stroke = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, line = 2) => {
   ctx.strokeStyle = color;
@@ -52,155 +102,203 @@ function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
 
 function drawGrass(ctx: CanvasRenderingContext2D) {
   rect(ctx, 0, 0, W, H, C.grass);
-  for (let row = 0; row < 24; row++) {
-    for (let col = 0; col < 32; col++) {
+  for (let row = 0; row < H / TILE; row++) {
+    for (let col = 0; col < W / TILE; col++) {
       const x = col * TILE;
       const y = row * TILE;
-      const variation = (row * 19 + col * 31) % 7;
-      rect(ctx, x, y, TILE, TILE, variation < 2 ? C.grassLight : variation > 5 ? C.grassDark : C.grass);
-      // Tiny, tile-aligned blades create an even, low-contrast turf texture.
-      const seed = (row * 37 + col * 23) % 13;
+      const seed = tileHash(col, row);
+      const variation = seed % 13;
+      const base = variation < 2 ? C.grassLight : variation > 10 ? C.grassDark : C.grass;
+      rect(ctx, x, y, TILE, TILE, base);
+      // Stable per-tile blades and clover keep the turf varied without visual noise.
       for (let i = 0; i < 3; i++) {
-        const gx = x + 5 + ((seed * 7 + i * 13) % 27);
-        const gy = y + 5 + ((seed * 11 + i * 9) % 26);
+        const detail = tileHash(col, row, i + 31);
+        const gx = x + 4 + (detail % 27);
+        const gy = y + 4 + ((detail >>> 7) % 27);
         rect(ctx, gx, gy, 2, 3, i === 1 ? C.grassLight : C.grassDeep);
         rect(ctx, gx + 2, gy + 2, 2, 1, C.grassLight);
       }
-      if (variation === 3) rect(ctx, x + 16, y + 26, 3, 2, '#b4bd66');
+      if (variation === 3 || variation === 8) {
+        const cx = x + 8 + (seed % 16);
+        const cy = y + 9 + ((seed >>> 8) % 14);
+        rect(ctx, cx, cy, 3, 2, '#b5c66a');
+        rect(ctx, cx + 3, cy + 2, 2, 2, '#a5ba60');
+        rect(ctx, cx - 2, cy + 2, 2, 2, '#93af59');
+      }
+      if (variation === 5) {
+        rect(ctx, x + 10 + (seed % 10), y + 22, 2, 5, C.grassLight);
+        rect(ctx, x + 14 + (seed % 8), y + 20, 2, 7, C.grassDeep);
+      }
     }
   }
 }
 
 function drawDirtPath(ctx: CanvasRenderingContext2D) {
-  // A connected, stepped path with softened pixel corners.
-  const paths = [
-    [9 * TILE + 4, 15 * TILE - 2, 4 * TILE - 8, 2 * TILE + 3],
-    [13 * TILE + 1, 15 * TILE + 4, 7 * TILE, TILE + 27],
-    [19 * TILE + 4, 14 * TILE + 4, 2 * TILE + 2, 8 * TILE],
-    [20 * TILE + 3, 18 * TILE, 6 * TILE, 2 * TILE],
-  ];
-  paths.forEach(([x, y, w, h]) => {
-    rect(ctx, x + 3, y + 3, w, h, C.dirtDark);
-    rect(ctx, x, y, w, h, C.dirt);
-    rect(ctx, x + 4, y + 3, w - 8, Math.max(4, h - 7), C.dirtLight);
-    for (let i = 0; i < Math.floor(w / 29); i++) {
-      rect(ctx, x + 8 + i * 29, y + 11 + (i % 2) * 13, 4, 2, '#e1b475');
+  // Stacked stair-step rectangles create rounded pixel edges against the grass.
+  DIRT_PATHS.forEach(({ x, y, w, h }, pathIndex) => {
+    rect(ctx, x + 6, y, w - 12, 4, C.dirtDark);
+    rect(ctx, x + 3, y + 3, w - 6, h - 6, C.dirtDark);
+    rect(ctx, x, y + 6, w, h - 12, C.dirtDark);
+    rect(ctx, x + 2, y + 4, w - 4, h - 8, C.dirt);
+    rect(ctx, x + 6, y + 5, w - 12, h - 10, C.dirtLight);
+    const columns = Math.floor(w / 29);
+    for (let i = 0; i < columns; i++) {
+      const seed = tileHash(i, pathIndex, 211);
+      const gx = x + 8 + i * 29;
+      const gy = y + 10 + (seed % Math.max(1, Math.floor((h - 16) / 2))) * 2;
+      rect(ctx, gx, gy, 4, 2, seed % 2 ? '#e1b475' : '#9d693f');
+      if (seed % 3 === 0) rect(ctx, gx + 5, gy + 2, 2, 2, '#c68a50');
     }
-  });
-  // Trim exposed corners into a friendly rounded path silhouette.
-  [
-    [9 * TILE, 15 * TILE], [13 * TILE, 15 * TILE], [19 * TILE, 14 * TILE], [20 * TILE, 18 * TILE],
-  ].forEach(([x, y]) => {
-    rect(ctx, x, y, 5, 5, C.grass);
-    rect(ctx, x + 2, y + 2, 3, 3, C.dirt);
   });
 }
 
 function drawPitch(ctx: CanvasRenderingContext2D) {
-  // Senior oval: alternating turf bands under clear chalk markings.
-  for (let r = 2; r <= 14; r += 2) rect(ctx, 20 * TILE, r * TILE, 12 * TILE, TILE, '#42874a');
-  // Junior training patch.
-  for (let r = 17; r <= 22; r += 2) rect(ctx, TILE, r * TILE, 10 * TILE, TILE, '#43874a');
+  // The lighter senior turf is a grid-aligned 12×12-tile pad; the chalk field is inset one tile.
+  rect(ctx, SENIOR_TURF.x, SENIOR_TURF.y, SENIOR_TURF.w, SENIOR_TURF.h, '#397e47');
+  for (let row = 0; row < SENIOR_TURF.h / TILE; row += 2) {
+    const stripe = row % 4 === 0 ? '#43894c' : '#3e8448';
+    rect(ctx, SENIOR_TURF.x, SENIOR_TURF.y + row * TILE, SENIOR_TURF.w, TILE, stripe);
+  }
+  // The junior training turf is likewise centered under its inset, 6×3-tile markings.
+  rect(ctx, JUNIOR_TURF.x, JUNIOR_TURF.y, JUNIOR_TURF.w, JUNIOR_TURF.h, '#397e47');
+  for (let row = 0; row < JUNIOR_TURF.h / TILE; row += 2) {
+    rect(ctx, JUNIOR_TURF.x, JUNIOR_TURF.y + row * TILE, JUNIOR_TURF.w, TILE, row % 4 === 0 ? '#43894c' : '#3e8448');
+  }
+
+  // Seeded, worn goalmouth patches stay beneath the clean chalk geometry.
+  [SENIOR_PITCH.x + TILE, SENIOR_PITCH.right - 3 * TILE].forEach((wearX, side) => {
+    rect(ctx, wearX, SENIOR_PITCH.centerY - 2 * TILE, 2 * TILE, 4 * TILE, '#3a7844');
+    for (let i = 0; i < 18; i++) {
+      const seed = tileHash(i + side * 23, 8, 701);
+      const px = wearX + 4 + (seed % (2 * TILE - 8));
+      const py = SENIOR_PITCH.centerY - 2 * TILE + 5 + ((seed >>> 8) % (4 * TILE - 10));
+      rect(ctx, px, py, 2 + (seed % 3), 2, seed % 4 === 0 ? '#936b43' : '#326d3e');
+    }
+  });
 
   ctx.strokeStyle = C.chalk;
   ctx.lineWidth = 3;
-  ctx.strokeRect(21 * TILE, 3 * TILE, 9 * TILE, 10 * TILE);
+  ctx.strokeRect(SENIOR_PITCH.x, SENIOR_PITCH.y, SENIOR_PITCH.w, SENIOR_PITCH.h);
   ctx.beginPath();
-  ctx.moveTo(25 * TILE + 18, 3 * TILE);
-  ctx.lineTo(25 * TILE + 18, 13 * TILE);
+  ctx.moveTo(SENIOR_PITCH.centerX, SENIOR_PITCH.y);
+  ctx.lineTo(SENIOR_PITCH.centerX, SENIOR_PITCH.y + SENIOR_PITCH.h);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(25 * TILE + 18, 8 * TILE, 42, 0, Math.PI * 2);
+  ctx.arc(SENIOR_PITCH.centerX, SENIOR_PITCH.centerY, TILE, 0, Math.PI * 2);
   ctx.stroke();
-  // Pixel-style goal squares and senior posts.
-  rect(ctx, 30 * TILE + 10, 6 * TILE, 14, 4 * TILE, C.chalk);
-  rect(ctx, 30 * TILE + 14, 6 * TILE + 5, 6, 4 * TILE - 10, C.grassDeep);
-  rect(ctx, 30 * TILE + 7, 7 * TILE + 14, 20, 6, '#e1a552');
+  // Matching penalty boxes on each end; the goalmouth and posts remain inside the turf buffer.
+  ctx.lineWidth = 2;
+  ctx.strokeRect(SENIOR_PITCH.x, SENIOR_PITCH.centerY - 2 * TILE, 2 * TILE, 4 * TILE);
+  ctx.strokeRect(SENIOR_PITCH.right - 2 * TILE, SENIOR_PITCH.centerY - 2 * TILE, 2 * TILE, 4 * TILE);
+  ctx.strokeRect(SENIOR_PITCH.right - 3 * TILE, SENIOR_PITCH.centerY - TILE, 3 * TILE, 2 * TILE);
+  const postX = SENIOR_PITCH.right - TILE + 11;
+  rect(ctx, postX, SENIOR_PITCH.centerY - 2 * TILE, 4, 4 * TILE, C.chalk);
+  rect(ctx, postX + 11, SENIOR_PITCH.centerY - 2 * TILE, 4, 4 * TILE, C.chalk);
+  rect(ctx, postX + 4, SENIOR_PITCH.centerY - 2, 7, 4, '#e1a552');
 
   ctx.strokeStyle = '#e9eed1';
   ctx.lineWidth = 2;
-  ctx.strokeRect(2 * TILE, 18 * TILE, 8 * TILE, 4 * TILE);
+  ctx.strokeRect(JUNIOR_PITCH.x, JUNIOR_PITCH.y, JUNIOR_PITCH.w, JUNIOR_PITCH.h);
   ctx.beginPath();
-  ctx.arc(6 * TILE, 20 * TILE, 25, 0, Math.PI * 2);
+  ctx.moveTo(JUNIOR_PITCH.centerX, JUNIOR_PITCH.y);
+  ctx.lineTo(JUNIOR_PITCH.centerX, JUNIOR_PITCH.y + JUNIOR_PITCH.h);
   ctx.stroke();
-  rect(ctx, 2 * TILE + 4, 19 * TILE + 12, 5, 2 * TILE - 24, C.chalk);
-  rect(ctx, 3 * TILE, 20 * TILE - 14, 16, 5, C.chalk);
+  ctx.beginPath();
+  ctx.arc(JUNIOR_PITCH.centerX, JUNIOR_PITCH.centerY, 24, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeRect(JUNIOR_PITCH.x, JUNIOR_PITCH.centerY - TILE, TILE, 2 * TILE);
+  ctx.strokeRect(JUNIOR_PITCH.right - TILE, JUNIOR_PITCH.centerY - TILE, TILE, 2 * TILE);
+  rect(ctx, JUNIOR_PITCH.x + 6, JUNIOR_PITCH.centerY - 2, 14, 4, C.chalk);
+  rect(ctx, JUNIOR_PITCH.x + 20, JUNIOR_PITCH.centerY - 2, 4, 4, C.chalk);
 
-  // Thick layered perimeter fence with a clubhouse-side gate.
-  const fx = 20 * TILE - 5;
-  const fy = 2 * TILE;
-  const fenceSegments = [[fy, 7 * TILE - fy], [9 * TILE, fy + 12 * TILE - 9 * TILE]];
+  // Layered senior perimeter rails leave a grass buffer beyond the east goal box.
+  const fx = SENIOR_FENCE.leftX;
+  const fenceSegments = [
+    [SENIOR_FENCE.topY, SENIOR_FENCE.gateTopY - SENIOR_FENCE.topY],
+    [SENIOR_FENCE.gateBottomY, SENIOR_FENCE.bottomY - SENIOR_FENCE.gateBottomY],
+  ];
   fenceSegments.forEach(([y, height]) => {
+    drawDropShadow(ctx, fx - 3, y, 12, height, 3);
     rect(ctx, fx, y, 5, height, '#553f30');
     rect(ctx, fx - 3, y, 9, height, '#d7b16d');
     rect(ctx, fx - 3, y, 9, 5, '#f1d398');
     for (let railY = y + 8; railY < y + height; railY += 22) rect(ctx, fx - 5, railY, 13, 4, '#f4dda7');
   });
-  // Hinged, open gate aligns to the walkable fence gap at rows 7–8.
-  rect(ctx, fx - 6, 7 * TILE + 4, 13, 4, '#805936');
-  rect(ctx, fx - 6, 7 * TILE + 4, 3, 36, '#d3ad6d');
-  rect(ctx, fx - 3, 7 * TILE + 7, 3, 26, '#efd49a');
-  rect(ctx, fx - 8, 7 * TILE + 4, 4, 4, '#f6e0a5');
-  // A short outer rail on the far sideline.
-  rect(ctx, 31 * TILE - 2, 2 * TILE, 5, 12 * TILE, '#67482d');
-  rect(ctx, 31 * TILE - 6, 2 * TILE, 10, 4, '#e0bd7d');
-  rect(ctx, 31 * TILE - 6, 14 * TILE - 4, 10, 4, '#e0bd7d');
-  for (let y = 2 * TILE + 15; y < 14 * TILE; y += 25) rect(ctx, 31 * TILE - 6, y, 10, 3, '#f0d49a');
-  label(ctx, 'SENIOR OVAL', 25 * TILE, 13 * TILE - 8, '#f7efd5', 11);
-  label(ctx, 'JUNIOR FIELD', 6 * TILE, 18 * TILE - 6, '#f7efd5', 10);
+  // Hinged open west gate aligns with the walkable two-row gap.
+  rect(ctx, fx - 6, SENIOR_FENCE.gateTopY + 4, 13, 4, '#805936');
+  rect(ctx, fx - 6, SENIOR_FENCE.gateTopY + 4, 3, 36, '#d3ad6d');
+  rect(ctx, fx - 3, SENIOR_FENCE.gateTopY + 7, 3, 26, '#efd49a');
+  rect(ctx, fx - 8, SENIOR_FENCE.gateTopY + 4, 4, 4, '#f6e0a5');
+  // East rail sits one tile beyond the lighter turf and clear of the goal area.
+  drawDropShadow(ctx, SENIOR_FENCE.rightX - 5, SENIOR_FENCE.topY, 14, SENIOR_FENCE.bottomY - SENIOR_FENCE.topY, 3);
+  rect(ctx, SENIOR_FENCE.rightX, SENIOR_FENCE.topY, 5, SENIOR_FENCE.bottomY - SENIOR_FENCE.topY, '#67482d');
+  rect(ctx, SENIOR_FENCE.rightX - 4, SENIOR_FENCE.topY, 10, 4, '#e0bd7d');
+  rect(ctx, SENIOR_FENCE.rightX - 4, SENIOR_FENCE.bottomY - 4, 10, 4, '#e0bd7d');
+  for (let y = SENIOR_FENCE.topY + 15; y < SENIOR_FENCE.bottomY; y += 25) rect(ctx, SENIOR_FENCE.rightX - 4, y, 10, 3, '#f0d49a');
+
+  label(ctx, 'SENIOR OVAL', SENIOR_PITCH.centerX, SENIOR_PITCH.bottom - 8, '#f7efd5', 11);
+  label(ctx, 'JUNIOR FIELD', JUNIOR_PITCH.centerX, JUNIOR_PITCH.y - 6, '#f7efd5', 10);
 }
 
 function drawJuniorFence(ctx: CanvasRenderingContext2D) {
-  const left = 2 * TILE - 8;
-  const right = 10 * TILE + 3;
-  const top = 17 * TILE + 3;
-  const bottom = 22 * TILE + 4;
+  const left = JUNIOR_FENCE.leftX;
+  const right = JUNIOR_FENCE.rightX;
+  const top = JUNIOR_FENCE.topY;
+  const bottom = JUNIOR_FENCE.bottomY;
   const rail = (x: number, y: number, w: number, h: number) => {
-    rect(ctx, x + 2, y + 3, w, h, '#503d31');
+    drawDropShadow(ctx, x, y, w, h, 4);
     rect(ctx, x, y, w, h - 2, '#c99a5b');
     rect(ctx, x, y, w, 3, '#f0d39a');
   };
-  rail(left, top, right - left + 8, 7);
+  const gateStart = 5 * TILE;
+  const gateEnd = 7 * TILE;
+  rail(left, top, gateStart - left, 7);
+  rail(gateEnd, top, right - gateEnd + 8, 7);
   rail(left, bottom, right - left + 8, 7);
   // Far sideline with heavy square posts.
   rail(right, top, 7, bottom - top + 7);
   for (let y = top + 15; y < bottom; y += 26) rect(ctx, right - 2, y, 10, 4, '#f1d69e');
-  // Near sideline is split into two rails for a walk-through gate.
-  rail(left, top, 7, 2 * TILE - 7);
-  rail(left, 20 * TILE + 5, 7, bottom - (20 * TILE + 5) + 7);
+  // Continuous west rail; the walk-through gate sits on the accessible north edge.
+  rail(left, top, 7, bottom - top + 7);
+  rect(ctx, gateStart - 4, top - 3, 5, 12, '#d6ae6f');
+  rect(ctx, gateEnd - 1, top - 3, 5, 12, '#d6ae6f');
+  rect(ctx, gateStart + 3, top + 1, 3, 5, '#f0d39a');
   rect(ctx, left - 2, top, 11, 6, '#f0d39a');
   rect(ctx, left - 2, bottom, 11, 6, '#f0d39a');
   for (let x = left + 31; x < right; x += 36) {
+    if (x >= gateStart - 6 && x < gateEnd + 6) continue;
     rect(ctx, x, top - 3, 6, 12, '#d6ae6f');
     rect(ctx, x, bottom - 3, 6, 12, '#d6ae6f');
   }
 }
 
-function drawTree(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1) {
-  const s = scale;
+function drawTree(ctx: CanvasRenderingContext2D, placement: (typeof TREE_PLACEMENTS)[number], time: number) {
+  const { x, y, scale: s, phase } = placement;
+  const sway = Math.round(Math.sin(time * 0.65 + phase) * 1.5);
+  drawFootShadow(ctx, x + 18 * s, y + 40 * s, 15 * s, 4 * s);
+  // Trunk stays planted while the leafy crown shifts by a pixel or two in the breeze.
   rect(ctx, x + 11 * s, y + 23 * s, 13 * s, 19 * s, '#70492f');
   rect(ctx, x + 7 * s, y + 19 * s, 22 * s, 7 * s, '#523a2c');
-  rect(ctx, x + 2 * s, y + 11 * s, 32 * s, 15 * s, '#1b573a');
-  rect(ctx, x + 6 * s, y + 5 * s, 25 * s, 15 * s, '#287346');
-  rect(ctx, x + 11 * s, y, 15 * s, 14 * s, '#3e8c4d');
-  rect(ctx, x + 9 * s, y + 7 * s, 7 * s, 3 * s, '#72a653');
-  rect(ctx, x + 20 * s, y + 14 * s, 7 * s, 3 * s, '#6da14e');
-  rect(ctx, x + 8 * s, y + 19 * s, 5 * s, 3 * s, '#73a650');
-  stroke(ctx, x + 2 * s, y, 32 * s, 26 * s, '#173e2c', Math.max(1, s));
+  rect(ctx, x + 14 * s, y + 26 * s, 3 * s, 13 * s, '#91613d');
+  rect(ctx, x + (2 + sway) * s, y + 11 * s, 32 * s, 15 * s, '#1b573a');
+  rect(ctx, x + (6 + sway) * s, y + 5 * s, 25 * s, 15 * s, '#287346');
+  rect(ctx, x + (11 + sway) * s, y, 15 * s, 14 * s, '#3e8c4d');
+  rect(ctx, x + (9 + sway) * s, y + 7 * s, 7 * s, 3 * s, '#72a653');
+  rect(ctx, x + (20 + sway) * s, y + 14 * s, 7 * s, 3 * s, '#6da14e');
+  rect(ctx, x + (8 + sway) * s, y + 19 * s, 5 * s, 3 * s, '#73a650');
+  stroke(ctx, x + (2 + sway) * s, y, 32 * s, 26 * s, '#173e2c', Math.max(1, s));
 }
 
-function drawTrees(ctx: CanvasRenderingContext2D) {
-  [
-    [10, 54, 1.15], [706, 20, 1.2], [1080, 38, 1.15], [16, 386, 1.1],
-    [1078, 528, 1.1], [90, 740, 1.05], [315, 770, 1.2], [1015, 770, 1.15],
-  ].forEach(([x, y, s]) => drawTree(ctx, x, y, s));
-  // Low bushes behind the east and south field edges.
-  [[1015, 315], [1039, 315], [1055, 315], [785, 756], [830, 756], [875, 756]].forEach(([x, y], i) => {
-    rect(ctx, x, y + 10, 28, 12, '#1e5d3b');
-    rect(ctx, x + 5, y + 3, 20, 13, i % 2 ? '#4a934d' : '#347d46');
-    rect(ctx, x + 10, y + 6, 6, 3, '#82aa5c');
-    stroke(ctx, x + 5, y + 3, 20, 14, '#183e2e', 2);
-  });
+function drawBush(ctx: CanvasRenderingContext2D, placement: (typeof BUSH_PLACEMENTS)[number], time: number) {
+  const { x, y, phase } = placement;
+  const sway = Math.round(Math.sin(time * 0.72 + phase) * 1.2);
+  drawFootShadow(ctx, x + 12, y + 18, 11, 3);
+  rect(ctx, x + 4, y + 12, 16, 7, '#1e5d3b');
+  rect(ctx, x + 2 + sway, y + 7, 19, 10, '#347d46');
+  rect(ctx, x + 6 + sway, y + 3, 13, 11, '#4a934d');
+  rect(ctx, x + 10 + sway, y + 5, 6, 3, '#82aa5c');
+  rect(ctx, x + 4 + sway, y + 11, 5, 3, '#72a653');
+  stroke(ctx, x + 2 + sway, y + 3, 19, 14, '#183e2e', 2);
 }
 
 function drawInteriorFloor(ctx: CanvasRenderingContext2D) {
@@ -211,17 +309,19 @@ function drawInteriorFloor(ctx: CanvasRenderingContext2D) {
     const offset = row % 2 ? 18 : 0;
     for (let x = 2 * TILE - 36; x < 19 * TILE; x += 36) {
       const bx = x + offset;
-      rect(ctx, bx, y, 35, 17, (row + Math.floor(x / 36)) % 3 === 0 ? '#b77b48' : '#ad7142');
+      const seed = tileHash(Math.floor(bx / TILE), row, 37);
+      const plank = seed % 5 === 0 ? '#b77b48' : seed % 4 === 0 ? '#a86b3d' : '#ad7142';
+      rect(ctx, bx, y, 35, 17, plank);
       rect(ctx, bx, y + 16, 35, 2, '#805133');
       rect(ctx, bx + 2, y + 2, 18, 1, '#d1975c');
-      if ((row * 7 + x) % 5 === 0) rect(ctx, bx + 25, y + 10, 5, 2, '#94613b');
+      if (seed % 5 === 0) rect(ctx, bx + 25, y + 10, 5, 2, '#94613b');
     }
   }
   // Boardroom carpet: woven navy/teal pattern, carefully inside the raised walls.
   rect(ctx, 2 * TILE, 2 * TILE, 9 * TILE, 4 * TILE, '#334c68');
   for (let y = 2 * TILE + 2; y < 6 * TILE; y += 12) {
     for (let x = 2 * TILE + 2; x < 11 * TILE; x += 12) {
-      rect(ctx, x, y, 10, 10, ((x + y) / 12) % 2 ? '#3a5870' : '#30445c');
+      rect(ctx, x, y, 10, 10, tileHash(Math.floor(x / 12), Math.floor(y / 12), 53) % 2 ? '#3a5870' : '#30445c');
       rect(ctx, x + 3, y + 3, 2, 2, '#668072');
     }
   }
@@ -229,7 +329,7 @@ function drawInteriorFloor(ctx: CanvasRenderingContext2D) {
   rect(ctx, 7 * TILE, 8 * TILE, 10 * TILE, 6 * TILE, '#8c593c');
   for (let y = 8 * TILE; y < 14 * TILE; y += 18) {
     for (let x = 7 * TILE; x < 17 * TILE; x += 18) {
-      rect(ctx, x, y, 17, 17, (x / 18 + y / 18) % 2 ? '#986247' : '#87543d');
+      rect(ctx, x, y, 17, 17, tileHash(Math.floor(x / 18), Math.floor(y / 18), 79) % 2 ? '#986247' : '#87543d');
       rect(ctx, x + 2, y + 2, 1, 1, '#c18759');
     }
   }
@@ -241,7 +341,7 @@ function drawInteriorFloor(ctx: CanvasRenderingContext2D) {
 
 function drawWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h = 20) {
   // Thick rear wall with offset cast shadow, plaster cap, timber wainscot and baseboard.
-  rect(ctx, x + 3, y + h + 5, w, 7, 'rgba(21,30,28,0.34)');
+  drawDropShadow(ctx, x, y + h + 3, w, 6, 7);
   rect(ctx, x, y + 6, w, h, C.wallDark);
   rect(ctx, x, y, w, 10, C.wallLight);
   rect(ctx, x + 2, y + 2, w - 4, 5, C.wall);
@@ -251,7 +351,7 @@ function drawWall(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
 }
 
 function drawSideWall(ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
-  rect(ctx, x + 15, y + 4, 7, h, 'rgba(21,30,28,0.32)');
+  drawDropShadow(ctx, x + 9, y + 2, 12, h, 6);
   rect(ctx, x + 7, y, 16, h, C.wallDark);
   rect(ctx, x, y, 11, h, C.wallLight);
   rect(ctx, x + 3, y + 2, 5, h - 4, C.wall);
@@ -266,6 +366,8 @@ function drawHouseWalls(ctx: CanvasRenderingContext2D) {
   drawSideWall(ctx, 19 * TILE - 20, 2 * TILE, 9 * TILE);
   drawWall(ctx, TILE, 15 * TILE - 23, 8 * TILE - 3, 17);
   drawWall(ctx, 13 * TILE, 15 * TILE - 23, 6 * TILE - 1, 17);
+  drawStoneFoundation(ctx, TILE, 15 * TILE - 3, 8 * TILE - 3);
+  drawStoneFoundation(ctx, 13 * TILE, 15 * TILE - 3, 6 * TILE - 1);
   // Divider between the boardroom and bar; its offset gap is the doorway.
   drawSideWall(ctx, 11 * TILE - 11, 2 * TILE, 3 * TILE);
   drawSideWall(ctx, 11 * TILE - 11, 6 * TILE - 5, TILE);
@@ -277,6 +379,8 @@ function drawHouseWalls(ctx: CanvasRenderingContext2D) {
   // Wall mounted frames, displayed at eye level on the back wall.
   drawFrame(ctx, 3 * TILE, TILE + 7, 'TEAM');
   drawFrame(ctx, 6 * TILE, TILE + 7, '1998');
+  drawWarmWindow(ctx, 9 * TILE, TILE + 3);
+  drawWarmWindow(ctx, 12 * TILE, TILE + 3);
   drawFrame(ctx, 14 * TILE, TILE + 7, 'CLUB');
   drawFrame(ctx, 17 * TILE, TILE + 7, 'FAIR');
 }
@@ -292,8 +396,32 @@ function drawFrame(ctx: CanvasRenderingContext2D, x: number, y: number, motif: s
   stroke(ctx, x, y, 31, 15, C.ink, 2);
 }
 
+function drawWarmWindow(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  drawDropShadow(ctx, x, y, 44, 18, 4);
+  rect(ctx, x, y, 44, 18, '#4b342b');
+  rect(ctx, x + 3, y + 2, 38, 12, '#bd7848');
+  rect(ctx, x + 5, y + 4, 34, 8, '#f4c679');
+  rect(ctx, x + 7, y + 5, 13, 6, '#ffe2a2');
+  rect(ctx, x + 23, y + 5, 13, 6, '#edaa60');
+  rect(ctx, x + 21, y + 4, 2, 9, '#70462f');
+  rect(ctx, x + 4, y + 14, 36, 2, '#f1d59a');
+  stroke(ctx, x, y, 44, 18, C.ink, 2);
+}
+
+function drawStoneFoundation(ctx: CanvasRenderingContext2D, x: number, y: number, w: number) {
+  drawDropShadow(ctx, x, y, w, 8, 6);
+  rect(ctx, x, y, w, 9, C.stoneDark);
+  for (let sx = x + 2, index = 0; sx < x + w - 2; sx += 18, index++) {
+    const stone = tileHash(Math.floor(sx / 18), Math.floor(y / 9), 101) % 3;
+    rect(ctx, sx, y + 1, Math.min(16, x + w - sx - 2), 6, stone === 0 ? C.stone : stone === 1 ? '#818987' : '#687476');
+    rect(ctx, sx + 2, y + 2, 7, 1, C.stoneLight);
+    rect(ctx, sx + 7, y + 7, 1, 2, C.stoneDark);
+  }
+  stroke(ctx, x, y, w, 9, C.ink, 2);
+}
+
 function drawRaisedObject(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, top: string, front: string, depth = 12) {
-  rect(ctx, x + 4, y + h + depth + 3, w, 5, 'rgba(20,29,29,0.3)');
+  drawDropShadow(ctx, x, y + h + depth, w, 5, 6);
   rect(ctx, x, y + h, w, depth, front);
   rect(ctx, x, y + h + depth - 4, w, 4, '#54382b');
   rect(ctx, x, y, w, h, top);
@@ -361,6 +489,7 @@ function drawBarProps(ctx: CanvasRenderingContext2D) {
   // Stools: seat, dark outline, and splayed timber legs.
   [8 * TILE + 18, 11 * TILE + 18, 15 * TILE + 18].forEach((x, i) => {
     const y = 8 * TILE + 22 + (i % 2) * 3;
+    drawDropShadow(ctx, x - 3, y, 18, 20, 4);
     rect(ctx, x + 4, y + 8, 4, 13, '#6b482f');
     rect(ctx, x - 3, y + 3, 3, 13, '#765236');
     rect(ctx, x + 12, y + 3, 3, 13, '#765236');
@@ -392,6 +521,7 @@ function drawLounge(ctx: CanvasRenderingContext2D) {
 
 function drawPlant(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1) {
   const s = scale;
+  drawFootShadow(ctx, x + 15 * s, y + 23 * s, 12 * s, 3 * s);
   rect(ctx, x + 8 * s, y + 15 * s, 13 * s, 10 * s, '#b85e3e');
   rect(ctx, x + 6 * s, y + 14 * s, 17 * s, 4 * s, '#d17a4a');
   rect(ctx, x + 13 * s, y + 4 * s, 5 * s, 12 * s, '#34754a');
@@ -410,7 +540,7 @@ function drawChangeRooms(ctx: CanvasRenderingContext2D) {
     }
   }
   // Building shell, low roof and deep front fascia.
-  rect(ctx, 11 * TILE, 17 * TILE + 4, 5 * TILE, 4 * TILE + 2, 'rgba(15,27,31,0.36)');
+  drawDropShadow(ctx, 11 * TILE, 17 * TILE + 2, 5 * TILE, 4 * TILE + 6, 8);
   rect(ctx, 11 * TILE, 17 * TILE - 7, 5 * TILE, 4 * TILE, '#465c64');
   rect(ctx, 11 * TILE + 5, 17 * TILE - 12, 5 * TILE - 10, 10, '#729095');
   rect(ctx, 11 * TILE, 17 * TILE + 3, 5 * TILE, 11, '#2e444c');
@@ -437,22 +567,26 @@ function drawChangeRooms(ctx: CanvasRenderingContext2D) {
 }
 
 function drawGrandstand(ctx: CanvasRenderingContext2D) {
-  // Timber bleacher tiers with rails and small seat divisions.
-  rect(ctx, 23 * TILE + 3, 4 * TILE + 12, 6 * TILE - 7, 2 * TILE + 7, 'rgba(25,35,30,0.35)');
+  // Grid-aligned timber bleachers in the north grass margin, wholly above the touchline.
+  const { x, y, w, h } = GRANDSTAND;
+  drawDropShadow(ctx, x + 2, y + 3, w - 4, h, 8);
+  rect(ctx, x + 3, y + 4, w - 6, h - 5, '#563c2d');
   for (let row = 0; row < 3; row++) {
-    const y = 4 * TILE + row * 15;
-    rect(ctx, 23 * TILE + 4, y, 6 * TILE - 8, 11, row === 0 ? '#9a683d' : '#875735');
-    rect(ctx, 23 * TILE + 4, y + 8, 6 * TILE - 8, 5, '#563d30');
-    for (let col = 0; col < 5; col++) rect(ctx, 23 * TILE + 12 + col * 37, y + 1, 4, 7, '#d9ad68');
+    const seatY = y + 7 + row * 15;
+    rect(ctx, x + 6, seatY, w - 12, 10, row === 0 ? '#a36e3f' : row === 1 ? '#916039' : '#825435');
+    rect(ctx, x + 6, seatY + 7, w - 12, 4, '#543b2e');
+    rect(ctx, x + 8, seatY + 1, w - 16, 1, '#d6a766');
+    for (let col = 0; col < 5; col++) rect(ctx, x + 14 + col * 38, seatY + 2, 4, 6, '#e2bd7b');
   }
-  rect(ctx, 23 * TILE, 4 * TILE - 7, 6 * TILE, 5, '#5e4937');
-  rect(ctx, 23 * TILE + 4, 4 * TILE - 13, 6 * TILE - 8, 7, '#e2c57e');
-  stroke(ctx, 23 * TILE + 2, 4 * TILE - 14, 6 * TILE - 4, 2 * TILE + 26, '#29383b', 2);
-  label(ctx, 'SMOKE-FREE STANDS', 26 * TILE, 4 * TILE - 16, '#fbf0cf', 8);
+  rect(ctx, x, y + 2, w, 5, '#5e4937');
+  rect(ctx, x + 4, y + 1, w - 8, 5, '#e2c57e');
+  stroke(ctx, x, y + 1, w, h, '#29383b', 2);
+  label(ctx, 'SMOKE-FREE STANDS', x + w / 2, y + 56, '#fbf0cf', 8);
 }
 
 function drawWellbeingNook(ctx: CanvasRenderingContext2D) {
   // A quiet pavilion canopy and floor, deliberately set behind the two NPC stations.
+  drawDropShadow(ctx, 23 * TILE + 3, 16 * TILE + 11, 7 * TILE, 5 * TILE, 8);
   rect(ctx, 23 * TILE + 3, 16 * TILE + 14, 7 * TILE, 5 * TILE, '#8c694d');
   rect(ctx, 23 * TILE + 7, 16 * TILE + 11, 7 * TILE - 8, 5 * TILE - 3, '#c4ad7e');
   for (let y = 16 * TILE + 15; y < 21 * TILE; y += 18) rect(ctx, 23 * TILE + 11, y, 7 * TILE - 17, 2, '#98744f');
@@ -474,11 +608,13 @@ function drawWellbeingNook(ctx: CanvasRenderingContext2D) {
   rect(ctx, 23 * TILE + 16, 19 * TILE + 1, 3, 28, '#5b4835');
   rect(ctx, 23 * TILE + 10, 19 * TILE - 2, 15, 10, '#e2b95f');
   rect(ctx, 23 * TILE + 13, 19 * TILE, 9, 5, '#f8dd88');
+  drawDropShadow(ctx, 23 * TILE + 3, 20 * TILE + 21, 50, 27, 5);
   rect(ctx, 23 * TILE + 7, 20 * TILE + 26, 40, 22, '#466a75');
   rect(ctx, 23 * TILE + 3, 20 * TILE + 21, 11, 25, '#31525e');
   rect(ctx, 23 * TILE + 41, 20 * TILE + 21, 11, 25, '#31525e');
   rect(ctx, 23 * TILE + 14, 20 * TILE + 29, 26, 11, '#658891');
   stroke(ctx, 23 * TILE + 3, 20 * TILE + 21, 49, 27, '#233b43', 2);
+  drawDropShadow(ctx, 28 * TILE + 2, 20 * TILE + 22, 50, 26, 5);
   rect(ctx, 28 * TILE + 8, 20 * TILE + 27, 37, 21, '#785b73');
   rect(ctx, 28 * TILE + 2, 20 * TILE + 22, 11, 24, '#62455f');
   rect(ctx, 28 * TILE + 41, 20 * TILE + 22, 11, 24, '#62455f');
@@ -530,6 +666,8 @@ function drawPixelSprite(ctx: CanvasRenderingContext2D, centerX: number, feetY: 
   // Jersey, dark hems, sleeves and a team-colour accent.
   p(4, 9, 8, 6, options.shirt); p(2, 10, 2, 4, options.shirt); p(12, 10, 2, 4, options.shirt);
   p(4, 14, 8, 1, outline); p(6, 9, 1, 6, options.accent); p(9, 9, 1, 6, options.accent);
+  p(4, 9, 2, 1, '#fff0d2'); p(10, 10, 2, 2, '#efc85e');
+  p(5, 13, 6, 1, '#253946');
   p(3, 12, 1, 2, '#e3a97d'); p(12, 12, 1, 2, '#e3a97d');
   // Lower kit and boots.
   p(4, 15, 4, 7, '#263b55'); p(8, 15, 4, 7, '#263b55');
@@ -543,12 +681,10 @@ function drawNPC(ctx: CanvasRenderingContext2D, npc: NPC, nearbyNPC: NPC | null,
   const feetY = npc.y * TILE + TILE / 2 + 14;
   const done = (completion[npc.id]?.total ?? 0) > 0 && (completion[npc.id]?.completed ?? 0) >= (completion[npc.id]?.total ?? 0);
   const isNearby = nearbyNPC?.id === npc.id;
-  const bob = isNearby ? Math.sin(time * 4 + index) * 1.5 : Math.sin(time * 1.5 + index) * 0.5;
-  // Oval ground shadow beneath each sprite.
-  ctx.fillStyle = 'rgba(16,25,24,0.38)';
-  ctx.beginPath();
-  ctx.ellipse(nx, feetY - 1, 12, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const breathFrame = Math.floor(time * 1.35 + index * 0.23) % 2;
+  const bob = isNearby ? Math.sin(time * 3.5 + index) * 1.4 : breathFrame === 0 ? 0 : -1.5;
+  // Soft, directional ellipse sits beneath each character while their idle body breathes.
+  drawFootShadow(ctx, nx, feetY - 1, 12, 4);
   drawPixelSprite(ctx, nx, feetY, {
     dir: npc.direction,
     shirt: npc.spriteColor,
@@ -603,11 +739,10 @@ function drawPixelBubble(ctx: CanvasRenderingContext2D, cx: number, y: number, m
 function drawPlayer(ctx: CanvasRenderingContext2D, player: PlayerPosition, nearbyNPC: NPC | null, time: number) {
   const px = player.x * TILE + TILE / 2;
   const feetY = player.y * TILE + TILE / 2 + 14;
-  const bob = player.isMoving ? Math.sin(time * 12) * 2 : 0;
-  ctx.fillStyle = 'rgba(13,22,23,0.42)';
-  ctx.beginPath();
-  ctx.ellipse(px, feetY - 1, 13, 4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const walkFrame = Math.floor(time * 14) % 2;
+  const bob = player.isMoving ? (walkFrame ? -2 : 0) : 0;
+  drawDustPuffs(ctx, player, px, feetY, time);
+  drawFootShadow(ctx, px, feetY - 1, 13, 4);
   drawPixelSprite(ctx, px, feetY, {
     dir: player.dir,
     shirt: '#176847',
@@ -623,6 +758,43 @@ function drawPlayer(ctx: CanvasRenderingContext2D, player: PlayerPosition, nearb
   }
 }
 
+function drawDustPuffs(ctx: CanvasRenderingContext2D, player: PlayerPosition, px: number, feetY: number, time: number) {
+  if (!player.isMoving || !isOnDirtPath(player.x, player.y)) return;
+  const rear = player.dir === 'up' ? { x: 0, y: 1 } : player.dir === 'down' ? { x: 0, y: -1 } : player.dir === 'left' ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const phase = (time * 1.5 + i / 3) % 1;
+    ctx.globalAlpha = (1 - phase) * 0.72;
+    const drift = 4 + phase * 8;
+    const x = px + rear.x * drift + Math.sin((time + i) * 4) * 2 - 2;
+    const y = feetY - 3 + rear.y * (3 + phase * 4) - phase * 5;
+    rect(ctx, x, y, phase < 0.45 ? 4 : 3, 2, phase < 0.55 ? '#e4c18a' : '#b98c5b');
+    if (phase < 0.35) rect(ctx, x + 2, y - 2, 2, 2, '#ead3a3');
+  }
+  ctx.restore();
+}
+
+function drawAmbientLighting(ctx: CanvasRenderingContext2D, time: number) {
+  const lights = [
+    { x: 12 * TILE, y: 7 * TILE, radius: 132, strength: 0.17, phase: 0.2 },
+    { x: 9 * TILE + 22, y: TILE + 12, radius: 82, strength: 0.12, phase: 1.7 },
+    { x: 12 * TILE + 22, y: TILE + 12, radius: 82, strength: 0.12, phase: 2.5 },
+    { x: 25 * TILE, y: 19 * TILE, radius: 108, strength: 0.16, phase: 0.9 },
+  ];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const light of lights) {
+    const pulse = 0.96 + Math.sin(time * 0.8 + light.phase) * 0.04;
+    const glow = ctx.createRadialGradient(light.x, light.y, 2, light.x, light.y, light.radius);
+    glow.addColorStop(0, `rgba(255, 205, 126, ${light.strength * pulse})`);
+    glow.addColorStop(0.48, `rgba(255, 179, 94, ${light.strength * 0.35 * pulse})`);
+    glow.addColorStop(1, 'rgba(255, 167, 74, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(light.x - light.radius, light.y - light.radius, light.radius * 2, light.radius * 2);
+  }
+  ctx.restore();
+}
+
 export function drawClubMap(ctx: CanvasRenderingContext2D, player: PlayerPosition, nearbyNPC: NPC | null, completion: CompletionMap, time: number) {
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, W, H);
@@ -630,7 +802,6 @@ export function drawClubMap(ctx: CanvasRenderingContext2D, player: PlayerPositio
   drawDirtPath(ctx);
   drawPitch(ctx);
   drawJuniorFence(ctx);
-  drawTrees(ctx);
 
   drawInteriorFloor(ctx);
   drawChangeRooms(ctx);
@@ -647,13 +818,14 @@ export function drawClubMap(ctx: CanvasRenderingContext2D, player: PlayerPositio
   rect(ctx, 24 * TILE + 3, 15 * TILE + 5, 15, 9, '#faf0d2');
   rect(ctx, 24 * TILE + 7, 15 * TILE + 7, 7, 5, '#d8544c');
   rect(ctx, 24 * TILE + 9, 15 * TILE + 6, 3, 7, '#fff3d4');
-  rect(ctx, 3 * TILE + 12, 17 * TILE + 20, 10 * TILE - 25, 3, '#f4eed3');
-  rect(ctx, 3 * TILE + 12, 21 * TILE - 22, 10 * TILE - 25, 3, '#f4eed3');
 
-  // Depth-sort the walking cast by foot position so characters feel grounded in the scene.
+  // Y-sort vegetation crowns, NPCs, and the player so whoever is visually farther back draws first.
   const entities = [
-    ...NPCS.map((npc, index) => ({ y: npc.y * TILE + TILE / 2, draw: () => drawNPC(ctx, npc, nearbyNPC, completion, time, index) })),
-    { y: player.y * TILE + TILE / 2, draw: () => drawPlayer(ctx, player, nearbyNPC, time) },
+    ...TREE_PLACEMENTS.map((tree) => ({ y: tree.y + 42 * tree.scale, draw: () => drawTree(ctx, tree, time) })),
+    ...BUSH_PLACEMENTS.map((bush) => ({ y: bush.y + 20, draw: () => drawBush(ctx, bush, time) })),
+    ...NPCS.map((npc, index) => ({ y: npc.y * TILE + TILE / 2 + 14, draw: () => drawNPC(ctx, npc, nearbyNPC, completion, time, index) })),
+    { y: player.y * TILE + TILE / 2 + 14, draw: () => drawPlayer(ctx, player, nearbyNPC, time) },
   ].sort((a, b) => a.y - b.y);
   entities.forEach((entity) => entity.draw());
+  drawAmbientLighting(ctx, time);
 }

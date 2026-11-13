@@ -30,3 +30,21 @@
 ## 6. GitHub Pages browser preview — complete
 - Set up GitHub Pages to deploy a live browser preview of the game.
 - Make the repository public and publish the Pages site at `https://jasonschmidt1983-ai.github.io/good-sports-quest-club-champions/` as authorized.
+
+## 7. Outdoor map alignment — complete
+- Senior Oval & Grandstand (Right Side): Move the wooden grandstand/bleachers completely off the playing surface so they sit neatly along the outer north or east perimeter behind the white touchline. Align the white pitch boundary lines, halfway line, and centre circle cleanly inside the lighter green turf area, leaving a 1-tile grass buffer before the perimeter fence. Shift the right-side perimeter fence outward by 1–2 tiles so it never overlaps the goal box.
+- Junior Field (Bottom-Left): Recalculate the X-offset of the Junior Field's white pitch markings (perimeter lines, centre circle, halfway line, and penalty boxes) using the exact tile grid coordinates so they sit centred horizontally inside the fenced turf area instead of spilling over the left fence.
+- Tree Placement & Layering: Restrict tree spawning strictly to unoccupied outer background grass tiles. Exclude all playing field turf, white line coordinates, dirt pathways, and perimeter fence tiles so trees never overlap fences or fields. Render tree canopies on an overhead/Y-sorted layer so characters walk cleanly behind them.
+
+## 8. Dynamic lighting and shadows — complete
+- Add an ambient lighting overlay layer. Give the Club Bar, Wellbeing Room, and clubhouse windows soft, warm radial light pools (globalCompositeOperation = 'lighter' or warm alpha gradients).
+- Cast consistent, soft directional drop-shadows (rgba(15, 23, 42, 0.28)) offset to the bottom-right under all walls, trees, grandstands, furniture, and characters.
+
+## 9. Tile variation and auto-tiled borders — complete
+- Replace uniform grass and wood tiles with seeded procedural variants (adding subtle grass blades, clover, worn turf in the goalmouths, and varied wood plank shading).
+- Add rounded pixel-art transition edges where dirt paths meet grass, and render stone foundations/baseboards along the bottom edge of all exterior clubhouse walls.
+
+## 10. Character polish and micro-animations — complete
+- Upgrade character sprites with higher-contrast 16-bit shading, distinct hair and club uniform details, and a smooth 2-frame idle breathing animation so NPCs gently bob when standing still.
+- Add a slow, gentle wind-sway offset to tree canopies and bushes.
+- Spawn subtle pixel dust puffs behind the player's feet when walking on outdoor dirt pathways, and display a smooth bouncing pixel indicator with a clean retro RPG dialogue prompt when approaching NPCs.

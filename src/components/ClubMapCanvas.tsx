@@ -3,6 +3,7 @@ import { NPC, PlayerPosition } from '../types/game';
 import { NPCS } from '../data/goodSportsQuestions';
 import { sounds } from '../utils/audio';
 import { drawClubMap } from './clubhouse-pixel-art';
+import { GRANDSTAND, MAP_COLS, MAP_ROWS, SENIOR_FENCE, TILE_SIZE } from './club-map-geometry';
 import { MessageSquare, Compass, Volume2, VolumeX, HelpCircle, Award } from 'lucide-react';
 
 interface ClubMapCanvasProps {
@@ -15,10 +16,6 @@ interface ClubMapCanvasProps {
   isMuted: boolean;
   onToggleMute: () => void;
 }
-
-const TILE_SIZE = 36;
-const MAP_COLS = 32;
-const MAP_ROWS = 24;
 
 // Collision map: 1 = impassable, 0 = walkable
 const createCollisionMap = (): number[][] => {
@@ -71,27 +68,35 @@ const createCollisionMap = (): number[][] => {
     map[r][16] = 1;
   }
 
-  // Oval boundary fence (r: 2..15, c: 20)
-  for (let r = 2; r <= 15; r++) {
-    if (r !== 7 && r !== 8) {
-      map[r][20] = 1; // Gate at r: 7..8
+  // Senior oval fence aligns with its visible west gate and east perimeter rail.
+  for (let r = 2; r < 14; r++) {
+    if (r * TILE_SIZE < SENIOR_FENCE.gateTopY || r * TILE_SIZE >= SENIOR_FENCE.gateBottomY) {
+      map[r][20] = 1; // West gate opens into the clubhouse patio at r: 11..12.
     }
   }
 
   // Senior Pitch Goal Posts
-  map[7][30] = 1;
-  map[9][30] = 1;
+  for (let r = 6; r <= 9; r++) map[r][30] = 1;
 
   // Junior Pitch Mini Goals
-  map[20][3] = 1;
-  map[21][3] = 1;
+  map[19][3] = 1;
+
+  // Junior perimeter: a centered two-tile north gate opens from the path below the clubhouse.
+  for (let c = 1; c <= 10; c++) {
+    if (c !== 5 && c !== 6) map[17][c] = 1;
+    map[22][c] = 1;
+  }
+  for (let r = 18; r <= 21; r++) {
+    map[r][1] = 1;
+    map[r][10] = 1;
+  }
 
   // First Aid / Wellbeing Pavilion kiosk (r: 17, c: 26..28)
   for (let c = 26; c <= 28; c++) map[17][c] = 1;
 
-  // Grandstand spectator shelter (r: 4..5, c: 24..28)
-  for (let c = 24; c <= 28; c++) {
-    map[4][c] = 1;
+  // North-perimeter grandstand, clear of the senior playing surface.
+  for (let c = GRANDSTAND.firstBlockedCol; c <= GRANDSTAND.lastBlockedCol; c++) {
+    map[GRANDSTAND.blockedRow][c] = 1;
   }
 
   return map;
@@ -120,7 +125,6 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
   const [nearbyNPC, setNearbyNPC] = useState<NPC | null>(null);
   const [currentZoneName, setCurrentZoneName] = useState<string>('Clubhouse Foyer');
   const animationFrameRef = useRef<number | null>(null);
-  const stepCycleRef = useRef<number>(0);
 
   // Determine which zone player is in
   const getZoneForPos = (x: number, y: number): string => {
@@ -131,7 +135,7 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
       return 'Clubhouse Main Hall';
     }
     if (x > 19 && y <= 15) {
-      if (y <= 7 && x >= 23) return 'Spectator Grandstand & Smoke-Free Zone';
+      if (y <= 1 && x >= GRANDSTAND.firstBlockedCol && x <= GRANDSTAND.lastBlockedCol) return 'Spectator Grandstand & Smoke-Free Zone';
       return 'Senior Oval & Match Pitch';
     }
     if (x <= 17 && y > 15) {
@@ -177,7 +181,6 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
         }
 
         sounds.playFootstepSound();
-        stepCycleRef.current = (stepCycleRef.current + 1) % 4;
         const newZone = getZoneForPos(nextX, nextY);
         setCurrentZoneName(newZone);
 
@@ -194,6 +197,15 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
     },
     [isTileBlocked, checkNearbyNPC]
   );
+
+  // Treat each tile step as a short movement burst; stop the walk cycle cleanly at rest.
+  useEffect(() => {
+    if (!player.isMoving) return;
+    const timer = window.setTimeout(() => {
+      setPlayer((current) => (current.isMoving ? { ...current, isMoving: false } : current));
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [player.isMoving, player.x, player.y, player.dir]);
 
   // Keyboard controls
   useEffect(() => {
@@ -294,14 +306,12 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
-    let time = 0;
-    const render = () => {
-      time += 0.05;
-      drawClubMap(ctx, player, nearbyNPC, npcCompletionMap, time);
+    const render = (timestamp: number) => {
+      drawClubMap(ctx, player, nearbyNPC, npcCompletionMap, timestamp / 1000);
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
-    render();
+    animationFrameRef.current = requestAnimationFrame(render);
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
@@ -363,7 +373,7 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
 
         {/* Floating Proximity Action Button when near NPC */}
         {nearbyNPC && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 border-2 border-amber-400 rounded-xl px-4 py-2.5 shadow-xl animate-bounce">
+          <div className="dialogue-prompt-float absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/95 border-2 border-amber-400 rounded-xl px-4 py-2.5 shadow-xl">
             <MessageSquare className="w-5 h-5 text-amber-400 shrink-0" />
             <div className="text-left pr-2">
               <p className="text-xs font-bold text-white">
@@ -427,7 +437,7 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
             }}
             className={`w-12 h-12 border rounded-lg flex items-center justify-center font-bold text-xs shadow-md ${
               nearbyNPC
-                ? 'bg-amber-400 border-amber-300 text-slate-950 animate-pulse'
+                ? 'bg-amber-400 border-amber-300 text-slate-950 dialogue-prompt-float'
                 : 'bg-slate-800 border-slate-600 text-slate-400'
             }`}
           >
