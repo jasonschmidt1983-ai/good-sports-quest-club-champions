@@ -6,6 +6,7 @@
 class SoundManager {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
+  private backgroundMusic: HTMLAudioElement | null = null;
 
   constructor() {
     // Read mute preference if saved
@@ -24,6 +25,26 @@ class SoundManager {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    this.startBackgroundMusic();
+  }
+
+  private startBackgroundMusic() {
+    if (this.isMuted || typeof window === 'undefined') return;
+    if (!this.backgroundMusic) {
+      this.backgroundMusic = new Audio('/audio/club-grounds-loop.mp3');
+      this.backgroundMusic.loop = true;
+      this.backgroundMusic.preload = 'auto';
+      this.backgroundMusic.volume = 0.22;
+    }
+    if (this.backgroundMusic.paused) {
+      void this.backgroundMusic.play().catch(() => {
+        // Browsers may defer playback until the next user gesture.
+      });
+    }
+  }
+
+  private stopBackgroundMusic() {
+    this.backgroundMusic?.pause();
   }
 
   public getMuted(): boolean {
@@ -35,6 +56,8 @@ class SoundManager {
     if (typeof window !== 'undefined') {
       localStorage.setItem('gs_game_muted', String(this.isMuted));
     }
+    if (this.isMuted) this.stopBackgroundMusic();
+    else this.startBackgroundMusic();
     return this.isMuted;
   }
 
@@ -91,6 +114,55 @@ class SoundManager {
       osc.stop(this.ctx.currentTime + 0.08);
     } catch {
       // Ignore audio errors
+    }
+  }
+
+  // Soft handheld-console footstep, called once per successful tile move.
+  public playFootstepSound() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      const pitch = 185 + Math.random() * 28;
+      osc.frequency.setValueAtTime(pitch, now);
+      osc.frequency.exponentialRampToValueAtTime(88, now + 0.055);
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.06);
+    } catch {
+      // Ignore audio errors when browser playback is unavailable.
+    }
+  }
+
+  // Low, brief blip for a blocked tile or fence collision.
+  public playCollisionSound() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(145, now);
+      osc.frequency.exponentialRampToValueAtTime(72, now + 0.075);
+      gain.gain.setValueAtTime(0.028, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch {
+      // Ignore audio errors when browser playback is unavailable.
     }
   }
 

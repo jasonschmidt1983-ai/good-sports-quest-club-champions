@@ -334,7 +334,7 @@ export default function App() {
               setIsMuted(muted);
             }}
             className="p-1.5 text-slate-400 hover:text-white bg-slate-800/80 rounded-lg border border-slate-700/80 transition-colors"
-            title="Toggle Sound Effects"
+            title="Toggle Background Music and Sound Effects"
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
@@ -492,6 +492,8 @@ export default function App() {
               onOpenTraining={() => {
                 setShowTrainingModal(true);
               }}
+              isMuted={isMuted}
+              onToggleMute={() => setIsMuted(sounds.toggleMute())}
             />
 
             {/* Quick Teammate Station Directory */}

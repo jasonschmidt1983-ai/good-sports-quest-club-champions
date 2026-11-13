@@ -23,10 +23,14 @@ Redesign the existing Good Sports Quest map as an original 16-bit-era, 2.5D top-
 3. Continue using the existing 32×24 tile map and map coordinates so quest NPC positions and click-to-walk behavior remain compatible.
 4. Preserve the existing source art/data and use deterministic canvas drawing for reusable environment tiles, props, and characters; no external/generated raster sheet is required.
 5. Verify changes with TypeScript and production build commands, resolving any verified dependency issue if needed before the final build is declared complete.
+6. Keep synthesized one-shot sound effects in the existing Web Audio manager, adding tile footsteps and collision bumps; play one generated original 16-bit-style instrumental loop at a restrained volume after the first user gesture.
+7. Use the existing audio toggle to start/stop both music and effects, respecting saved mute preference and browser autoplay restrictions.
 
 ## Project structure
 - `src/components/ClubMapCanvas.tsx`: map interactions, player position, map view and controls.
 - `src/components/clubhouse-pixel-art.ts`: pure canvas drawing helpers for terrain, architecture, props, pixel sprites and status bubbles.
+- `src/utils/audio.ts`: synthesized gameplay/UI effects plus looped background music and shared mute behavior.
+- `public/audio/club-grounds-loop.mp3`: original instrumental background loop.
 - `src/data/goodSportsQuestions.ts`: existing NPC and question definitions, unchanged by this visual pass.
 - `src/types/game.ts`: existing game types, unchanged unless the renderer reveals a necessary type gap.
 - `src/App.tsx`: existing application state and quest UI, unchanged.

@@ -21,3 +21,8 @@
 - Redesign the player and NPCs into classic 16x24 or 16x32 pixel chibi RPG sprites with distinct hair, club uniforms, dark outlines, and oval ground shadows underneath their feet.
 - Replace the floating yellow '?' icons with classic pixel-art speech bubbles or subtle animated exclamation marks above NPCs when the player approaches.
 - Preserve the existing walk controls, collision, NPC coordinates, quest completion status, and conversation actions while changing presentation.
+
+## 5. Retro audio and game sound effects — complete
+- Add audio sound effects and 16-bit retro background music to match the Pokémon aesthetic.
+- Play a short footstep sound on successful tile movement and a distinct collision blip on a blocked tile.
+- Start the music after the first permitted user gesture, loop it continuously, and make the existing audio toggle control both music and sound effects.

@@ -12,6 +12,8 @@ interface ClubMapCanvasProps {
   npcCompletionMap: Record<string, { total: number; completed: number }>;
   onOpenHub: () => void;
   onOpenTraining: () => void;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
 const TILE_SIZE = 36;
@@ -102,6 +104,8 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
   npcCompletionMap,
   onOpenHub,
   onOpenTraining,
+  isMuted,
+  onToggleMute,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -115,7 +119,6 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
 
   const [nearbyNPC, setNearbyNPC] = useState<NPC | null>(null);
   const [currentZoneName, setCurrentZoneName] = useState<string>('Clubhouse Foyer');
-  const [isMuted, setIsMuted] = useState<boolean>(sounds.getMuted());
   const animationFrameRef = useRef<number | null>(null);
   const stepCycleRef = useRef<number>(0);
 
@@ -166,12 +169,14 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
         const nextY = prev.y + dy;
 
         if (isTileBlocked(nextX, nextY)) {
+          sounds.playCollisionSound();
           // Can still turn towards that direction
           const npc = checkNearbyNPC(prev.x, prev.y);
           setNearbyNPC(npc);
           return { ...prev, dir };
         }
 
+        sounds.playFootstepSound();
         stepCycleRef.current = (stepCycleRef.current + 1) % 4;
         const newZone = getZoneForPos(nextX, nextY);
         setCurrentZoneName(newZone);
@@ -319,15 +324,12 @@ export const ClubMapCanvas: React.FC<ClubMapCanvasProps> = ({
         {/* Quick action buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              const muted = sounds.toggleMute();
-              setIsMuted(muted);
-            }}
+            onClick={onToggleMute}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/60 hover:bg-slate-700 rounded-lg transition-colors border border-slate-600/50"
-            title="Toggle Sound Effects"
+            title="Toggle Background Music and Sound Effects"
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
-            <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Sound On'}</span>
+            <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Audio On'}</span>
           </button>
 
           <button
